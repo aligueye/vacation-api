@@ -1,10 +1,9 @@
-from flask import Flask, request, jsonify
+from flask import Flask
 from flask_restful import Resource, Api, reqparse, fields, marshal_with, inputs, abort
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
 import utils
 import pytz
-import json
 
 app = Flask(__name__)
 api = Api(app)
@@ -23,28 +22,28 @@ class Vacation_Request_Model(db.Model):
     vacation_end_date = db.Column(db.DateTime(), nullable=False)
 
     def __repr__(self):
-        return f"Vacation Request(author = {self.author}, status = {self.status}, " + \
-               f"resolved by = {self.resolved_by}, request_created_at = {self.request_created_at}, " + \
-               f"vacation_start_date = {self.vacation_start_date}, vacation_end_date = {self.vacation_end_date}\n"
+        return f'Vacation Request(author = {self.author}, status = {self.status}, ' + \
+               f'resolved by = {self.resolved_by}, request_created_at = {self.request_created_at}, ' + \
+               f'vacation_start_date = {self.vacation_start_date}, vacation_end_date = {self.vacation_end_date}\n'
 
 db.create_all()
 
-# FIXME: '' xor ""
 # Input verification
+# FIXME: apply to everything
 vacation_request_put_args = reqparse.RequestParser()
-vacation_request_put_args.add_argument("id", type=int, help="ID required")
-vacation_request_put_args.add_argument("author", type=int, help="Worker ID required", required=True)
-vacation_request_put_args.add_argument("status", type=str, help="Vacation info required", required=True)
-vacation_request_put_args.add_argument("resolved_by", type=int, help="Manager ID required", required=True)
+vacation_request_put_args.add_argument('id', type=int, help='ID required')
+vacation_request_put_args.add_argument('author', type=int, help='Worker ID required', required=True)
+vacation_request_put_args.add_argument('status', type=str, help='Vacation info required', required=True)
+vacation_request_put_args.add_argument('resolved_by', type=int, help='Manager ID required', required=True)
 vacation_request_put_args.add_argument('request_created_at', type=inputs.datetime_from_iso8601)
-vacation_request_put_args.add_argument('vacation_start_date', type=inputs.datetime_from_iso8601, help="Vacation start date required", required=True)
-vacation_request_put_args.add_argument('vacation_end_date', type=inputs.datetime_from_iso8601, help="Vacation end date required", required=True)
+vacation_request_put_args.add_argument('vacation_start_date', type=inputs.datetime_from_iso8601, help='Vacation start date required', required=True)
+vacation_request_put_args.add_argument('vacation_end_date', type=inputs.datetime_from_iso8601, help='Vacation end date required', required=True)
 
 vacation_request_patch_args = reqparse.RequestParser()
-vacation_request_patch_args.add_argument("id", type=int)
-vacation_request_patch_args.add_argument("author", type=int)
-vacation_request_patch_args.add_argument("status", type=str)
-vacation_request_patch_args.add_argument("resolved_by", type=int)
+vacation_request_patch_args.add_argument('id', type=int)
+vacation_request_patch_args.add_argument('author', type=int)
+vacation_request_patch_args.add_argument('status', type=str)
+vacation_request_patch_args.add_argument('resolved_by', type=int)
 vacation_request_patch_args.add_argument('request_created_at', type=inputs.datetime_from_iso8601)
 vacation_request_patch_args.add_argument('vacation_start_date', type=inputs.datetime_from_iso8601)
 vacation_request_patch_args.add_argument('vacation_end_date', type=inputs.datetime_from_iso8601)
@@ -66,7 +65,7 @@ class Vacation_Request(Resource):
     def get(self, vr_id):
         result = Vacation_Request_Model.query.get(vr_id)
         if not result:
-            abort(404, message="Vacation request was not found")
+            abort(404, message='Vacation request was not found')
 
         return result
 
@@ -79,10 +78,14 @@ class Vacation_Request(Resource):
         now = dt.today().timestamp()
         vacation_days_used = 0
 
+        # Check if statis is approved, pending, or rejected
+        if args['status'] not in utils.VALID_STATUS:
+            abort(400, message='Vacation request status invalid')
+
         # Check if id is unique
         result = Vacation_Request_Model.query.get(vr_id)
         if result:
-            abort(400, message="Vacation request ID is not unique")
+            abort(400, message='Vacation request ID is not unique')
 
         # Check if vacation begins in the past
         if now > start:
@@ -101,7 +104,7 @@ class Vacation_Request(Resource):
             
             # Checks if vacation limit has been reached by previous requests
             if vacation_days_used >= 30:
-                abort(400, message="Employee has reached vacation day limit")
+                abort(400, message='Employee has reached vacation day limit')
 
         # Checks if vacation limit has been reached by current requests
         vacation_days_used += utils.work_days_used(args['vacation_start_date'], args['vacation_end_date'])
@@ -124,14 +127,13 @@ class Vacation_Request(Resource):
         args = vacation_request_patch_args.parse_args()
         result = Vacation_Request_Model.query.get(vr_id)
         if not result:
-            abort(404, message="Vacation request was not found")
+            abort(404, message='Vacation request was not found')
 
         if args['status']:
-            result.status = args['status']
-        if args['vacation_start_date']:
-            result.vacation_start_date = args['vacation_start_date']
-        if args['vacation_end_date']:
-            result.vacation_end_date = args['vacation_end_date']
+            if args['status'] in utils.VALID_STATUS:
+                result.status = args['status']
+            else:
+                abort(400, message=f'Invalid status was used')
 
         db.session.commit()
 
@@ -141,7 +143,7 @@ class Vacation_Request(Resource):
     def delete(self, vr_id):
         result = Vacation_Request_Model.query.get(vr_id)
         if not result:
-            abort(404, message="Vacation request was not found")
+            abort(404, message='Vacation request was not found')
 
         db.session.delete(result)
         db.session.commit()
@@ -246,7 +248,7 @@ api.add_resource(Vacation_Request_Manager_Overlap, '/vacation/manager/overlap/<v
 
 @app.route('/')
 def home():
-    return "<h1>Welcome to Vacation Request API</h1>"
+    return '<h1>Welcome to Vacation Request API</h1>'
 
 if __name__ == '__main__':
     app.run(debug=True)
