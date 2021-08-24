@@ -48,7 +48,7 @@ resource_fields = {
 
 class Vacation_Request(Resource):
     
-    # Get vr by id
+    # Get Vacation Request
     @marshal_with(resource_fields)
     def get(self):
         args = request_args.parse_args()
@@ -58,7 +58,7 @@ class Vacation_Request(Resource):
 
         return result
 
-    # Create/Update vr
+    # Create Vacation Request
     @marshal_with(resource_fields)
     def put(self):
         args = request_args.parse_args()
@@ -66,7 +66,7 @@ class Vacation_Request(Resource):
         end = args['vacation_end_date'].timestamp()
         vacation_days_used = 0
 
-        # Check if statis is approved, pending, or rejected
+        # Check if status is approved, pending, or rejected
         if args['status'] not in utils.VALID_STATUS:
             abort(400, message='Vacation request status invalid')
 
@@ -85,15 +85,11 @@ class Vacation_Request(Resource):
         if result:
             for request in result:
                 vacation_days_used += utils.work_days_used(request.vacation_start_date, request.vacation_end_date)
-            
+            vacation_days_used += utils.work_days_used(args['vacation_start_date'], args['vacation_end_date'])
+
             # Checks if vacation limit has been reached by previous requests
             if vacation_days_used >= 30:
                 abort(400, message='Employee has reached vacation day limit')
-
-        # Checks if vacation limit has been reached by current requests
-        vacation_days_used += utils.work_days_used(args['vacation_start_date'], args['vacation_end_date'])
-        if vacation_days_used >=30:
-            abort(400, message=f'Your vacation is too long. Only {30 - vacation_days_used} left')
 
         # Creates new instance of Vacation Request Model
         vacation_request = Vacation_Request_Model(id=args['id'], author=args['author'], status=args['status'], 
@@ -105,7 +101,7 @@ class Vacation_Request(Resource):
 
         return vacation_request
 
-    # Update
+    # Update Vacation Request
     @marshal_with(resource_fields)
     def patch(self):
         args = request_args.parse_args()
@@ -123,7 +119,7 @@ class Vacation_Request(Resource):
 
         return result
 
-    # Delete vr
+    # Delete Vacation Request
     @marshal_with(resource_fields)
     def delete(self):
         args = request_args.parse_args()
@@ -136,7 +132,7 @@ class Vacation_Request(Resource):
 
         return 200
 
-# Shows all of employee's vacation requests
+# Resource for employees to see vacation requests
 # @ 'vacation/employee/
 class Vacation_Request_Employee(Resource):
     @marshal_with(resource_fields)
@@ -148,7 +144,7 @@ class Vacation_Request_Employee(Resource):
         
         return result
 
-#  Shows employee's VRs filtered by status
+#  Resource for employees to see requests filtered by status
 # @ 'vacation/employee/filter
 class Vacation_Request_Employee_Filter(Resource):
     @marshal_with(resource_fields)
@@ -165,7 +161,7 @@ class Vacation_Request_Employee_Filter(Resource):
 
 
 # Resource for workers to see remaining vacation days
-# @ 'vacation/employee/remaining/<author>
+# @ 'vacation/employee/remaining/'
 class Vacation_Request_Remaining(Resource):
     @marshal_with(resource_fields)
     def get(self):
@@ -182,8 +178,7 @@ class Vacation_Request_Remaining(Resource):
 
 
 # Resource for managers see request from their employees 
-# @ 'vacation/manager/
-# similair approach to first
+# @ 'vacation/manager/'
 class Vacation_Request_Manager(Resource):
     @marshal_with(resource_fields)
     def get(self):
@@ -194,9 +189,8 @@ class Vacation_Request_Manager(Resource):
 
         return result
 
-# Resource for managers to filter
+# Resource for managers to filter requests
 # @ 'vacation/manager/filter
-#       Shows thier employees VRs
 class Vacation_Request_Manager_Filter(Resource):
     @marshal_with(resource_fields)
     def get(self):

@@ -1,54 +1,127 @@
-### Brief
+# Vacation Request API
 
-It's November, and everyone is planning their holiday vacation. But management is struggling! They need a solution to approve vacation requests while also ensuring that there are still enough employees in the office to achieve end-of-year goals.  
+## Description
 
-Your task is to build one HTTP API that allows employees to make vacation requests, and another that provides managers with an overview of all vacation requests and allows them to decline or approve requests.
+HTTP API that allows employees to make vacation requests and provides managers with an overview of all vacation requests and allows them to decline or approve requests.
 
-### Tasks
+## Requirements
 
-- Implement assignment using:
-    - Language: Python
-    - Framework: any framework
-- There should be API routes that allow workers to:
-    - See their requests
-        - Filter by status (approved, pending, rejected)
-    - See their number of remaining vacation days
-    - Make a new request if they have not exhausted their total limit (30 per year)
-- There should be API routes that allow managers to:
-    - See an overview of all requests
-        - Filter by pending and approved
-    - See an overview for each individual employee
-    - See an overview of overlapping requests
-    - Process an individual request and either approve or reject it
-- Write tests for your business logic
+- Python 3.x
+- flask
+- flask_restful
+- flask-sqlalchemy
 
-Each request should, at minimum, have the following signature:
-```
-{
-  "id": ENTITY_ID,
-  "author": WORKER_ID,
-  "status": STATUS_OPTION, // may be one of: "approved", "rejected", "pending"
-  "resolved_by": MANAGER_ID,
-  "request_created_at": "2020-08-09T12:57:13.506Z",
-  "vacation_start_date" "2020-08-24T00:00:00.000Z",
-  "vacation_end_date" "2020-09-04T00:00:00.000Z",
-}
-```
-You are expected to design any other required models and routes for your API.
+Ensure requirements are met by checking Python version and installing dependencies with these commands
+'''
+python --version
+pip install flask
+pip install flask-restful
+pip install flask-sqlalchemy
+'''
 
-### Evaluation Criteria
+## Base URL
 
-- Python best practices
-- Completeness: Did you include all features?
-- Correctness: Does the solution perform in a logical way?
-- Maintainability: Is the solution written in a clean, maintainable way?
-- Testing: Has the solution been adequately tested?
-- Documentation: Is the API well-documented?
+"http://127.0.0.1:5000/"
 
-### CodeSubmit
+## API Routes
 
-Please organize, design, test, and document your code as if it were going into production - then push your changes to the master branch. After you have pushed your code, you must submit the assignment via the assignment page.
+Flask-restful segments different routes into a 'Resource' class. Each 'Resource' can have only one HTTP method type attached to it.
 
-All the best and happy coding,
+    ex. ToDo Resource can only have one GET method, to list or GET all ToDo objects, another ToDoList Resource and route would be needed
 
-The Stavvy Team
+Therefore, the following resources will have different routes and use cases
+
+### Vacation Request [GET, PUT, PATCH, DELETE]
+url: '/vacation'
+
+description: CRUD controller for Vacation Request Model
+
+GET: 
+    - returns Vacation Request Model data
+    - requires entire signature of Vacation Request object, no NULL values
+    - only id is used of data in signature
+
+PUT:
+    - creates Vacation Request Model
+    - requires entire signature of Vacation Request object, no NULL values
+    - Business logic of Vacation Request is checked in this function
+
+PATCH:
+    - updates status variable of Vacation Request Model
+    - requires entire signature of Vacation Request object, no NULL values
+    - only id is used of data in signature
+
+DELETE:
+    - deletes Vacation Request Model
+    - requires entire signature of Vacation Request object, no NULL values
+    - only id is used of data in signature
+
+### Vacation Request Employee [GET]
+url: '/vacation/employee'
+
+description: Shows all Vacation Requests of individual employee
+
+GET: 
+    - returns list of Vacation Requests from given worker id
+    - requires entire signature of Vacation Request object, no NULL values
+    - only author is used of data in signature
+
+### Vacation Request Employee Filter [GET]
+url: '/vacation/employee/filter'
+
+description: Filters Vacation Requests of individual employee by status
+
+GET: 
+    - returns list of Vacation Requests from given worker id and status
+    - requires entire signature of Vacation Request object, no NULL values
+    - author and status is used from signature
+
+### Vacation Request Remaining [GET]
+url: '/vacation/employee/remaining'
+
+description: Calculate the number of vacation days remaining for employee
+
+GET: 
+    - returns integer of remaining vacation days
+    - requires entire signature of Vacation Request object, no NULL values
+    - author is used from signature
+    - does not count Federal Holidays and weekend days
+
+### Vacation Request Manager [GET]
+url: '/vacation/manager'
+
+description: Shows all Vacation Request of individual manager
+
+GET: 
+    - returns list of Vacation Requests from given manager id
+    - requires entire signature of Vacation Request object, no NULL values
+    - resolved_by is used from signature
+
+### Vacation Request Manager Filter [GET]
+url: '/vacation/employee/remaining'
+
+description: Filters Vacation Requests of individual manager by status
+
+GET: 
+    - returns list of Vacation Requests from given manager id and status
+    - requires entire signature of Vacation Request object, no NULL values
+    - resolved_by and status is used from signature
+
+### Vacation Request Manager Overlap [GET]
+url: '/vacation/employee/remaining'
+
+description: Shows overlapping Vacation Request based on another Vacation Request
+
+GET: 
+    - returns list of Vacation Requests that overlap with Vacation Request provided
+    - requires entire signature of Vacation Request object, no NULL values
+    - vacation_start_date and vacation_end_date is used from signature
+
+## Testing
+
+Unit tests are attached in tests folder. 
+
+To run tests:
+    - Run main.py to activate API
+    - Run vacation_api_test.py first as this creates test data
+    - Other tests can be ran in any order
