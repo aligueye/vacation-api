@@ -1,9 +1,7 @@
 from flask import Flask
 from flask_restful import Resource, Api, reqparse, fields, marshal_with, inputs, abort
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime as dt
 import utils
-import pytz
 
 app = Flask(__name__)
 api = Api(app)
@@ -28,25 +26,15 @@ class Vacation_Request_Model(db.Model):
 
 db.create_all()
 
-# Input verification
-# FIXME: apply to everything
-vacation_request_put_args = reqparse.RequestParser()
-vacation_request_put_args.add_argument('id', type=int, help='ID required')
-vacation_request_put_args.add_argument('author', type=int, help='Worker ID required', required=True)
-vacation_request_put_args.add_argument('status', type=str, help='Vacation info required', required=True)
-vacation_request_put_args.add_argument('resolved_by', type=int, help='Manager ID required', required=True)
-vacation_request_put_args.add_argument('request_created_at', type=inputs.datetime_from_iso8601)
-vacation_request_put_args.add_argument('vacation_start_date', type=inputs.datetime_from_iso8601, help='Vacation start date required', required=True)
-vacation_request_put_args.add_argument('vacation_end_date', type=inputs.datetime_from_iso8601, help='Vacation end date required', required=True)
-
-vacation_request_patch_args = reqparse.RequestParser()
-vacation_request_patch_args.add_argument('id', type=int)
-vacation_request_patch_args.add_argument('author', type=int)
-vacation_request_patch_args.add_argument('status', type=str)
-vacation_request_patch_args.add_argument('resolved_by', type=int)
-vacation_request_patch_args.add_argument('request_created_at', type=inputs.datetime_from_iso8601)
-vacation_request_patch_args.add_argument('vacation_start_date', type=inputs.datetime_from_iso8601)
-vacation_request_patch_args.add_argument('vacation_end_date', type=inputs.datetime_from_iso8601)
+# Input verification/formatting
+request_args = reqparse.RequestParser()
+request_args.add_argument('id', type=int, help='ID required', required=True)
+request_args.add_argument('author', type=int, help='Worker ID required', required=True)
+request_args.add_argument('status', type=str, help='Vacation info required', required=True)
+request_args.add_argument('resolved_by', type=int, help='Manager ID required', required=True)
+request_args.add_argument('request_created_at', type=inputs.datetime_from_iso8601, required=True)
+request_args.add_argument('vacation_start_date', type=inputs.datetime_from_iso8601, help='Vacation start date required', required=True)
+request_args.add_argument('vacation_end_date', type=inputs.datetime_from_iso8601, help='Vacation end date required', required=True)
 
 resource_fields = {
     'id': fields.Integer,
@@ -62,8 +50,9 @@ class Vacation_Request(Resource):
     
     # Get vr by id
     @marshal_with(resource_fields)
-    def get(self, vr_id):
-        result = Vacation_Request_Model.query.get(vr_id)
+    def get(self):
+        args = request_args.parse_args()
+        result = Vacation_Request_Model.query.get(args['id'])
         if not result:
             abort(404, message='Vacation request was not found')
 
@@ -71,11 +60,10 @@ class Vacation_Request(Resource):
 
     # Create/Update vr
     @marshal_with(resource_fields)
-    def put(self, vr_id):
-        args = vacation_request_put_args.parse_args()
+    def put(self):
+        args = request_args.parse_args()
         start = args['vacation_start_date'].timestamp()
         end = args['vacation_end_date'].timestamp()
-        now = dt.today().timestamp()
         vacation_days_used = 0
 
         # Check if statis is approved, pending, or rejected
@@ -83,13 +71,9 @@ class Vacation_Request(Resource):
             abort(400, message='Vacation request status invalid')
 
         # Check if id is unique
-        result = Vacation_Request_Model.query.get(vr_id)
+        result = Vacation_Request_Model.query.get(args['id'])
         if result:
             abort(400, message='Vacation request ID is not unique')
-
-        # Check if vacation begins in the past
-        if now > start:
-            abort(400, message='Vacation must take place in present')
         
         # Check if vacation starts after end date
         if start > end:
@@ -112,8 +96,8 @@ class Vacation_Request(Resource):
             abort(400, message=f'Your vacation is too long. Only {30 - vacation_days_used} left')
 
         # Creates new instance of Vacation Request Model
-        vacation_request = Vacation_Request_Model(id=vr_id, author=args['author'], status=args['status'], 
-                                                  resolved_by=args['resolved_by'], request_created_at=dt.now(tz=pytz.utc), 
+        vacation_request = Vacation_Request_Model(id=args['id'], author=args['author'], status=args['status'], 
+                                                  resolved_by=args['resolved_by'], request_created_at=args['request_created_at'], 
                                                   vacation_start_date=args['vacation_start_date'], vacation_end_date=args['vacation_end_date'])
 
         db.session.add(vacation_request)
@@ -123,9 +107,9 @@ class Vacation_Request(Resource):
 
     # Update
     @marshal_with(resource_fields)
-    def patch(self, vr_id):
-        args = vacation_request_patch_args.parse_args()
-        result = Vacation_Request_Model.query.get(vr_id)
+    def patch(self):
+        args = request_args.parse_args()
+        result = Vacation_Request_Model.query.get(args['id'])
         if not result:
             abort(404, message='Vacation request was not found')
 
@@ -137,11 +121,13 @@ class Vacation_Request(Resource):
 
         db.session.commit()
 
-        return 200
+        return result
 
     # Delete vr
-    def delete(self, vr_id):
-        result = Vacation_Request_Model.query.get(vr_id)
+    @marshal_with(resource_fields)
+    def delete(self):
+        args = request_args.parse_args()
+        result = Vacation_Request_Model.query.get(args['id'])
         if not result:
             abort(404, message='Vacation request was not found')
 
@@ -151,29 +137,29 @@ class Vacation_Request(Resource):
         return 200
 
 # Shows all of employee's vacation requests
-# @ 'vacation/employee/<author>
+# @ 'vacation/employee/
 class Vacation_Request_Employee(Resource):
     @marshal_with(resource_fields)
-    def get(self, author):
-        result = Vacation_Request_Model.query.filter_by(author=author).all()
-        
+    def get(self):
+        args = request_args.parse_args()
+        result = Vacation_Request_Model.query.filter_by(author=args['author']).all()
         if not result:
-            abort(404, message=f'No vacation request exist under worker id:{author}')
+            abort(404, message='No vacation request exist under worker id')
         
         return result
 
 #  Shows employee's VRs filtered by status
-# @ 'vacation/employee/<author>/<status>
+# @ 'vacation/employee/filter
 class Vacation_Request_Employee_Filter(Resource):
     @marshal_with(resource_fields)
-    def get(self, author, status):
-
-        if status in utils.VALID_STATUS:
-            result = Vacation_Request_Model.query.filter_by(author=author, status=status).all()
+    def get(self):
+        args = request_args.parse_args()
+        if args['status'] in utils.VALID_STATUS:
+            result = Vacation_Request_Model.query.filter_by(author=args['author'], status=args['status']).all()
         else:
             abort(400, message='Invalid status was used, must be \'pending\', \'approved\', or \'rejected\'')
         if not result:
-            abort(404, message=f'No {status} vacation requests matching filter criteria')
+            abort(404, message='No vacation requests matching filter criteria')
 
         return result
 
@@ -181,70 +167,69 @@ class Vacation_Request_Employee_Filter(Resource):
 # Resource for workers to see remaining vacation days
 # @ 'vacation/employee/remaining/<author>
 class Vacation_Request_Remaining(Resource):
-
-    def get(self, author):
-        result = Vacation_Request_Model.query.filter_by(author=author).all()
+    @marshal_with(resource_fields)
+    def get(self):
+        args = request_args.parse_args()
+        count = 0
+        result = Vacation_Request_Model.query.filter_by(author=args['author']).all()
         if not result:
             return 30
         
-        count = 0
         for request in result:
             count += utils.work_days_used(request.vacation_start_date, request.vacation_end_date)
 
-        return 30 - count
+        return 30 - count, 200
 
 
-# Resource for managers to filter 
-# @ 'vacation/manager/<resolved_by>/
+# Resource for managers see request from their employees 
+# @ 'vacation/manager/
 # similair approach to first
 class Vacation_Request_Manager(Resource):
     @marshal_with(resource_fields)
-    def get(self, resolved_by):
-        result = Vacation_Request_Model.query.filter_by(resolved_by=resolved_by).all()
-
+    def get(self):
+        args = request_args.parse_args()
+        result = Vacation_Request_Model.query.filter_by(resolved_by=args['resolved_by']).all()
         if not result:
-            abort(404, message=f'No vacation requests under manager id:{resolved_by}')
+            abort(404, message='No vacation requests under manager id')
 
         return result
 
-# Resource for managers to see request from their employees
-# @ 'vacation/manager/<resolved_by>/<status>
+# Resource for managers to filter
+# @ 'vacation/manager/filter
 #       Shows thier employees VRs
 class Vacation_Request_Manager_Filter(Resource):
     @marshal_with(resource_fields)
-    def get(self, resolved_by, status):
-
-        if status in utils.VALID_MGT_STATUS:
-            result = Vacation_Request_Model.query.filter_by(resolved_by=resolved_by, status=status).all()
+    def get(self):
+        args = request_args.parse_args()
+        if args['status'] in utils.VALID_MGT_STATUS:
+            result = Vacation_Request_Model.query.filter(Vacation_Request_Model.resolved_by==args['resolved_by'], Vacation_Request_Model.status==args['status']).all()
         else:
             abort(400, message='Invalid status was used, must be \'pending\' or \'approved\'')
         if not result:
-            abort(404, message=f'No {status} vacation requests matching filter criteria')
+            abort(404, message=f'No vacation requests with given status under manager id')
 
         return result
 
 # Resource for managers to see overlapping requests
-# @ 'vacation/manager/overlap/<start_date>/<end_date>
+# @ 'vacation/manager/overlap
 class Vacation_Request_Manager_Overlap(Resource):
     @marshal_with(resource_fields)
-    def get(self, vacation_start_date, vacation_end_date):
-        start = dt.strptime(vacation_start_date, '%Y-%m-%dT%H:%M:%S.%fZ')
-        end = dt.strptime(vacation_end_date, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-        result = Vacation_Request_Model.query.filter(Vacation_Request_Model.vacation_start_date <= end, Vacation_Request_Model.vacation_end_date >= start).all()
+    def get(self):
+        args = request_args.parse_args()
+        result = Vacation_Request_Model.query.filter(Vacation_Request_Model.resolved_by==args['resolved_by'], Vacation_Request_Model.vacation_start_date < args['vacation_end_date'], Vacation_Request_Model.vacation_end_date > args['vacation_start_date']).all()
         
         if not result or len(result) == 1:
-            abort(400, message=f'No overlapping vacation requests from {start} - {end}')
-
+            abort(404, message='No vacation request overlapping with given vacation request')
+        
         return result
 
-api.add_resource(Vacation_Request, '/vacation/<string:vr_id>')
-api.add_resource(Vacation_Request_Employee, '/vacation/employee/<author>')
-api.add_resource(Vacation_Request_Employee_Filter, '/vacation/employee/<author>/<status>')
-api.add_resource(Vacation_Request_Remaining, '/vacation/remaining/<string:author>')
-api.add_resource(Vacation_Request_Manager, '/vacation/manager/<resolved_by>')
-api.add_resource(Vacation_Request_Manager_Filter, '/vacation/manager/<resolved_by>/<status>')
-api.add_resource(Vacation_Request_Manager_Overlap, '/vacation/manager/overlap/<vacation_start_date>/<vacation_end_date>')
+api.add_resource(Vacation_Request, '/vacation/')
+api.add_resource(Vacation_Request_Employee, '/vacation/employee')
+api.add_resource(Vacation_Request_Employee_Filter, '/vacation/employee/filter')
+api.add_resource(Vacation_Request_Remaining, '/vacation/employee/remaining')
+api.add_resource(Vacation_Request_Manager, '/vacation/manager')
+api.add_resource(Vacation_Request_Manager_Filter, '/vacation/manager/filter')
+api.add_resource(Vacation_Request_Manager_Overlap, '/vacation/manager/overlap')
 
 @app.route('/')
 def home():
