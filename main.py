@@ -46,6 +46,8 @@ resource_fields = {
     'vacation_end_date': fields.DateTime,
 }
 
+# Basic CRUD for Vacation Request
+# @ 'vacation/'
 class Vacation_Request(Resource):
     
     # Get Vacation Request
