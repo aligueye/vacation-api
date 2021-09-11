@@ -12,5 +12,5 @@ def work_days_used(start, end):
         if day_incrementor.weekday() < 5 and day_incrementor not in FEDERAL_HOLIDAYS:
             days_used += 1
 
-            day_incrementor += timedelta(days=1)
+        day_incrementor += timedelta(days=1)
     return days_used
